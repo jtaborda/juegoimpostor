@@ -1,0 +1,31 @@
+<div class="container">
+    <div class="card">
+        <h1 class="title">IMPOSTOR</h1>
+        <p class="subtitle">Encuentra al espia entre nosotros</p>
+
+        <div class="form-group">
+            <label>Tu nombre</label>
+            <input type="text" [(ngModel)]="playerName" placeholder="Tu nombre" class="input-field">
+        </div>
+
+        <div *ngIf="!isJoining" class="actions">
+            <button (click)="isJoining = true" class="btn btn-primary">Unirse a una sala</button>
+            <button (click)="createRoom()" [disabled]="!playerName" class="btn btn-secondary">Crear Sala</button>
+
+        </div>
+
+        <div *ngIf="isJoining" class="join-section">
+            <div class="form-group">
+                <label>Codigo de la sala</label>
+                <input type="text" [(ngModel)]="roomCode" placeholder="ABCDE" class="input-field">
+            </div>
+            <div class="actions">
+                <button (click)="joinRoom()" [disabled]="!playerName || !roomCode"
+                    class="btn btn-primary">Enter</button>
+                <button (click)="isJoining = false" class="btn btn-text">Back</button>
+            </div>
+        </div>
+
+        <p *ngIf="error" class="error">{{ error }}</p>
+    </div>
+</div>

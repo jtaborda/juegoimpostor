@@ -1,0 +1,55 @@
+<div class="container">
+    <div class="game-board">
+
+        <!-- Role Card -->
+        <div class="card-container" (click)="showWord = !showWord">
+            <div class="card" [class.flipped]="showWord">
+                <div class="card-front">
+                    <h2>TOQUE PARA REVELAR ROL</h2>
+                </div>
+                <div class="card-back" [class.impostor]="gameState.isImpostor">
+                    <h2 *ngIf="gameState.isImpostor">IMPOSTOR</h2>
+                    <div *ngIf="!gameState.isImpostor">
+                        <p>La palabra es:</p>
+                        <h1>{{ gameState.word }}</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Turn Indicator -->
+        <div class="turn-indicator">
+            <p>Turno actual</p>
+            <h2 [class.my-turn]="isMyTurn">{{ currentPlayerName }}</h2>
+            <p class="instruction">Di una palabra relacionada con la palabra secreta</p>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions">
+            <button *ngIf="isMyTurn" (click)="endTurn()" class="btn btn-primary pulse">Terminar Turno</button>
+            <button *ngIf="gameState.isHost" (click)="resetGame()" class="btn btn-danger">Terminar Juego</button>
+        </div>
+
+    </div>
+
+    <!-- Results Modal -->
+    <div class="modal-overlay" *ngIf="showResults" (click)="closeResults()">
+        <div class="modal-content" (click)="$event.stopPropagation()">
+            <h1 class="modal-title">🎭 Fin del Juego 🎭</h1>
+
+            <div class="results-info">
+                <div class="result-item">
+                    <p class="result-label">La palabra era:</p>
+                    <h2 class="result-value word">{{ gameState.gameWord }}</h2>
+                </div>
+
+                <div class="result-item impostor-reveal">
+                    <p class="result-label">El impostor era:</p>
+                    <h2 class="result-value impostor">{{ impostorName }}</h2>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" (click)="closeResults()">Volver al Inicio</button>
+        </div>
+    </div>
+</div>
