@@ -172,12 +172,12 @@ export class SocketService {
         const word = this.words[Math.floor(Math.random() * this.words.length)];
         const playerIds = room.players.map((p: any) => p.id);
         const impostorId = playerIds[Math.floor(Math.random() * playerIds.length)];
-
+        const turnIndex = Math.floor(Math.random() * room.players.length);
         update(roomRef, {
           status: 'playing',
           word: word,
           impostorId: impostorId,
-          turnIndex: 0
+          turnIndex: turnIndex
         });
       }
     });
