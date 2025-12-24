@@ -5,7 +5,7 @@
         <div class="card-container" (click)="showWord = !showWord">
             <div class="card" [class.flipped]="showWord">
                 <div class="card-front">
-                    <h2>TOQUE PARA REVELAR ROL</h2>
+                    <h2>TOCA PARA REVELAR ROL</h2>
                 </div>
                 <div class="card-back" [class.impostor]="gameState.isImpostor">
                     <h2 *ngIf="gameState.isImpostor">IMPOSTOR</h2>
@@ -19,7 +19,7 @@
 
         <!-- Turn Indicator -->
         <div class="turn-indicator">
-            <p>Turno actual</p>
+            <p>El turno actual es de :</p>
             <h2 [class.my-turn]="isMyTurn">{{ currentPlayerName }}</h2>
             <p class="instruction">Di una palabra relacionada con la palabra secreta</p>
         </div>
