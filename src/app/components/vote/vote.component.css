@@ -9,11 +9,11 @@
 }
 
 .vote-container h2 {
-    color: #ffffff; /* Título en blanco */
+    color: #00ffcc; 
     font-size: 2.5em;
     margin-bottom: 20px;
     font-weight: bold;
-    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
+    text-shadow: 2px 2px 8px rgba(41, 45, 104, 0.7);
 }
 
 .players-grid {
