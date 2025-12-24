@@ -1,44 +1,47 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { CommonModule } from '@angular/common';
-import { SocketService } from './services/socket.service';
-import { GameStateService } from './services/game-state.service';
+import { ChangeDetectionStrategy, Component, inject, signal, OnDestroy, OnInit } from '@angular/core';
+import { Router, RouterOutlet } from '@angular/router';
 import { Subscription } from 'rxjs';
+import { SocketService } from './services/socket.service';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
-  imports: [RouterOutlet, CommonModule],
+  imports: [RouterOutlet],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.css'
+  styleUrl: './app.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent implements OnInit, OnDestroy {
-  title = 'client';
-  private sub: Subscription | null = null;
-  visitCount: number = 0;
+  private socketService = inject(SocketService);
+  private router = inject(Router);
 
-  constructor(
-    private socketService: SocketService,
-    private gameState: GameStateService
-  ) { }
+  private subscriptions = new Subscription();
+  public visitCount = signal(0);
 
   ngOnInit() {
-    this.sub = this.socketService.onRoleAssigned().subscribe(data => {
-      if (data) {
-        this.gameState.word = data.word;
-        this.gameState.isImpostor = data.isImpostor;
-      }
+    this.socketService.incrementVisitCount().then((count: number) => {
+      this.visitCount.set(count);
     });
 
-    // Incrementar contador de visitas
-    this.socketService.incrementVisitCount().then((count: number) => {
-      this.visitCount = count;
-    });
+    this.subscriptions.add(
+      this.socketService.onGameStarted().subscribe(game => {
+        if (game && game.status === 'playing') {
+          this.router.navigate(['/game']);
+        }
+      })
+    );
+
+    this.subscriptions.add(
+      this.socketService.onGameReset().subscribe(room => {
+        if (room && room.status === 'voting') {
+          this.router.navigate(['/vote']);
+        } else if (room && room.status === 'lobby') {
+          this.router.navigate(['/']);
+        }
+      })
+    );
   }
 
   ngOnDestroy() {
-    if (this.sub) {
-      this.sub.unsubscribe();
-    }
+    this.subscriptions.unsubscribe();
   }
 }

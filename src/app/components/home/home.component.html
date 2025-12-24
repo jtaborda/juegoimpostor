@@ -1,31 +1,74 @@
 <div class="container">
+  @if (gameState.roomId()) {
+    <!-- LOBBY VIEW -->
+    <div class="lobby-container">
+      <h1 class="title">IMPOSTOR</h1>
+
+      <div class="room-code-section">
+        <p class="room-code-label">Room Code</p>
+        <div class="room-code-box" (click)="copyCode()">
+          <span class="room-code-text">{{ gameState.roomId() }}</span>
+          <span class="copy-icon">📋</span>
+        </div>
+        <p class="copy-hint">Haz click para copiar</p>
+      </div>
+
+      <div class="players-section">
+        <h2>Jugadores ({{ gameState.players().length }})</h2>
+        <ul class="players-list">
+          @for (player of gameState.players(); track player.id) {
+            <li class="player-item">{{ player.name }}</li>
+          }
+        </ul>
+      </div>
+
+      <div class="actions">
+        @if (gameState.isHost()) {
+          <button (click)="startGame()" [disabled]="gameState.players().length < 2" class="btn btn-primary btn-start">
+            Empezar Juego
+          </button>
+          @if (gameState.players().length < 2) {
+            <p class="start-condition">Se necesitan al menos 2 jugadores para empezar.</p>
+          }
+        }
+         @else {
+          <p class="waiting-text">Esperando a que el host inicie la partida...</p>
+        }
+      </div>
+    </div>
+  } @else {
+    <!-- HOME/JOIN VIEW -->
     <div class="card">
         <h1 class="title">IMPOSTOR</h1>
         <p class="subtitle">Encuentra al espia entre nosotros</p>
 
         <div class="form-group">
             <label>Tu nombre</label>
-            <input type="text" [(ngModel)]="playerName" placeholder="Tu nombre" class="input-field">
+            <input type="text" [value]="playerName()" (input)="updatePlayerName($event)" placeholder="Tu nombre" class="input-field">
         </div>
 
-        <div *ngIf="!isJoining" class="actions">
-            <button (click)="isJoining = true" class="btn btn-primary">Unirse a una sala</button>
-            <button (click)="createRoom()" [disabled]="!playerName" class="btn btn-secondary">Crear Sala</button>
-
-        </div>
-
-        <div *ngIf="isJoining" class="join-section">
-            <div class="form-group">
-                <label>Codigo de la sala</label>
-                <input type="text" [(ngModel)]="roomCode" placeholder="ABCDE" class="input-field">
-            </div>
+        @if (!isJoining()) {
             <div class="actions">
-                <button (click)="joinRoom()" [disabled]="!playerName || !roomCode"
-                    class="btn btn-primary">Enter</button>
-                <button (click)="isJoining = false" class="btn btn-text">Back</button>
+                <button (click)="isJoining.set(true)" class="btn btn-primary">Unirse a una sala</button>
+                <button (click)="createRoom()" [disabled]="!playerName()" class="btn btn-secondary">Crear Sala</button>
             </div>
-        </div>
+        } @else {
+            <div class="join-section">
+                <div class="form-group">
+                    <label>Codigo de la sala</label>
+                    <input type="text" [value]="roomCode()" (input)="updateRoomCode($event)" placeholder="ABCDE" class="input-field">
+                </div>
+                <div class="actions">
+                    <button (click)="joinRoom()" [disabled]="!playerName() || !roomCode()"
+                        class="btn btn-primary">Enter</button>
+                    <button (click)="isJoining.set(false)" class="btn btn-text">Back</button>
+                </div>
+            </div>
+        }
 
-        <p *ngIf="error" class="error">{{ error }}</p>
+        @if (error()) {
+            <p class="error">{{ error() }}</p>
+        }
     </div>
+  }
 </div>

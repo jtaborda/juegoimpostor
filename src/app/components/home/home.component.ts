@@ -1,64 +1,104 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
 import { SocketService } from '../../services/socket.service';
 import { GameStateService } from '../../services/game-state.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-home',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
   templateUrl: './home.component.html',
-  styleUrls: ['./home.component.css']
+  styleUrls: ['./home.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule, FormsModule]
 })
-export class HomeComponent implements OnInit {
-  playerName: string = '';
-  roomCode: string = '';
-  isJoining: boolean = false;
-  error: string = '';
+export class HomeComponent implements OnDestroy {
+  private socketService = inject(SocketService);
+  public gameState = inject(GameStateService);
 
-  constructor(
-    private socketService: SocketService,
-    private gameState: GameStateService,
-    private router: Router
-  ) { }
+  public playerName = signal('');
+  public roomCode = signal('');
+  public isJoining = signal(false);
+  public error = signal('');
 
-  ngOnInit() {
-    // Limpiar el estado cuando se vuelve al inicio
-    this.gameState.reset();
-    this.error = '';
+  private subs: Subscription[] = [];
+
+  constructor() {
+    // Only reset if there's no room ID, to persist state across navigations
+    if (!this.gameState.roomId()) {
+      this.gameState.reset();
+    }
+    this.error.set('');
+
+    this.subs.push(
+      this.socketService.onPlayerJoined().subscribe(players => {
+        this.gameState.setPlayers(players);
+      }),
+
+      this.socketService.onGameStarted().subscribe(gameData => {
+        if (gameData) {
+          this.gameState.setGameData(gameData);
+          // Navigation is handled by AppComponent based on 'status'
+        }
+      }),
+
+      this.socketService.onPlayerLeft().subscribe(players => {
+        this.gameState.setPlayers(players);
+      })
+    );
   }
 
-  createRoom() {
-    if (!this.playerName) return;
+  ngOnDestroy() {
+    this.subs.forEach(s => s.unsubscribe());
+  }
 
-    this.socketService.createRoom(this.playerName, (response: any) => {
+  public createRoom(): void {
+    if (!this.playerName()) return;
+
+    this.socketService.createRoom(this.playerName(), (response: any) => {
       if (response.success) {
-        this.gameState.roomId = response.roomId;
-        this.gameState.playerName = this.playerName;
-        this.gameState.players = response.room.players;
-        this.gameState.isHost = true;
-        this.router.navigate(['/lobby']);
+        this.gameState.setRoomId(response.roomId);
+        this.gameState.setPlayerName(this.playerName());
+        this.gameState.setPlayers(response.room.players);
+        this.gameState.setIsHost(true);
+        // Navigation handled by AppComponent via status change to 'lobby'
       } else {
-        this.error = 'Error creating room';
+        this.error.set('Error creating room');
       }
     });
   }
 
-  joinRoom() {
-    if (!this.playerName || !this.roomCode) return;
+  public joinRoom(): void {
+    if (!this.playerName() || !this.roomCode()) return;
 
-    this.socketService.joinRoom(this.roomCode.toUpperCase(), this.playerName, (response: any) => {
+    this.socketService.joinRoom(this.roomCode().toUpperCase(), this.playerName(), (response: any) => {
       if (response.success) {
-        this.gameState.roomId = this.roomCode.toUpperCase();
-        this.gameState.playerName = this.playerName;
-        this.gameState.players = response.room.players;
-        this.gameState.isHost = false;
-        this.router.navigate(['/lobby']);
+        this.gameState.setRoomId(this.roomCode().toUpperCase());
+        this.gameState.setPlayerName(this.playerName());
+        this.gameState.setPlayers(response.room.players);
+        this.gameState.setIsHost(false);
+        // Navigation handled by AppComponent via status change to 'lobby'
       } else {
-        this.error = response.message;
+        this.error.set(response.message);
       }
     });
+  }
+
+  public startGame(): void {
+    this.socketService.startGame(this.gameState.roomId());
+  }
+
+  public copyCode(): void {
+    navigator.clipboard.writeText(this.gameState.roomId());
+  }
+
+  public updatePlayerName(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.playerName.set(target.value);
+  }
+
+  public updateRoomCode(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    this.roomCode.set(target.value);
   }
 }

@@ -1,8 +1,9 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue, update, get, child, push, remove } from 'firebase/database';
+import { getDatabase, ref, set, onValue, update, get } from 'firebase/database';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { firebaseConfig } from '../firebase-config';
+import { GameStateService } from './game-state.service';
 
 @Injectable({
   providedIn: 'root'
@@ -10,57 +11,32 @@ import { firebaseConfig } from '../firebase-config';
 export class SocketService {
   private app: any;
   private db: any;
-  private currentPlayerId: string;
+  private readonly currentPlayerId: string;
+  private gameState = inject(GameStateService);
 
-  // Subjects to mimic socket events
   private playerJoinedSubject = new BehaviorSubject<any[]>([]);
   private gameStartedSubject = new BehaviorSubject<any>(null);
-  private roleAssignedSubject = new BehaviorSubject<any>(null);
   private turnChangedSubject = new BehaviorSubject<number>(0);
   private gameResetSubject = new BehaviorSubject<any>(null);
   private playerLeftSubject = new BehaviorSubject<any[]>([]);
+  private voteResultsSubject = new BehaviorSubject<any>(null);
 
-  // Word List
   private words = [
-    // Comunes
-    "Manzana", "Guitarra", "Playa", "Computadora", "Pizza",
-    "Avión", "Fútbol", "Reloj", "Gato", "Libro",
-    "Montaña", "Coche", "Zapato", "Sol", "Luna",
-    "Casa", "Trabajo", "Amigo", "Familia", "Escuela",
-    "Agua", "Café", "Pan", "Ciudad", "Río", "Shakira",
-
-    // Música
-    "Canción", "Batería", "Micrófono", "Concierto",
-    "Rock", "Pop", "Reguetón", "Salsa", "Trompeta",
-    "Piano", "Violín", "DJ", "Disco", "Melodía",
-
-    // Juegos
-    "PlayStation", "Xbox", "Nintendo", "Mario Bros",
-    "Estrategia", "Servidor",
-
-    // Tecnología
-    "Teléfono", "Tablet", "Internet", "Router", "Cable",
-    "Pantalla", "Teclado", "Mouse", "Auriculares", "Red",
-    "Software", "Hardware", "Servidor", "BaseDeDatos", "API",
-
-    // Comida
-    "Hamburguesa", "Taco", "Helado", "Chocolate", "Cereal",
-    "Arroz", "Pollo", "Sopa", "Ensalada",
-
-    // Lugares
-    "Parque de diversiones", "Museo", "Cine", "Teatro", "Hotel",
-    "Restaurante", "CentroComercial", "Estadio", "Aeropuerto", "Iglesia",
-
-    // Otros variados
-    "Perro", "Bicicleta", "Camino", "Cielo", "Nube", "Colombia",
-    "Rosa", "Flor", "Llave", "Puerta", "Ventana", "Venezuela"
+    "Manzana", "Guitarra", "Playa", "Computadora", "Pizza", "Avión", "Fútbol", "Reloj", "Gato", "Libro",
+    "Montaña", "Coche", "Zapato", "Sol", "Luna", "Casa", "Trabajo", "Amigo", "Familia", "Escuela",
+    "Agua", "Café", "Pan", "Ciudad", "Río", "Shakira", "Canción", "Batería", "Micrófono", "Concierto",
+    "Rock", "Pop", "Reguetón", "Salsa", "Trompeta", "Piano", "Violín", "DJ", "Disco", "Melodía",
+    "PlayStation", "Xbox", "Nintendo", "Mario Bros", "Estrategia", "Servidor", "Teléfono", "Tablet",
+    "Internet", "Router", "Cable", "Pantalla", "Teclado", "Mouse", "Auriculares", "Red", "Software",
+    "Hardware", "BaseDeDatos", "API", "Hamburguesa", "Taco", "Helado", "Chocolate", "Cereal", "Arroz",
+    "Pollo", "Sopa", "Ensalada", "Parque de diversiones", "Museo", "Cine", "Teatro", "Hotel",
+    "Restaurante", "CentroComercial", "Estadio", "Aeropuerto", "Iglesia", "Perro", "Bicicleta",
+    "Camino", "Cielo", "Nube", "Colombia", "Rosa", "Flor", "Llave", "Puerta", "Ventana", "Venezuela"
   ];
-
 
   constructor() {
     this.app = initializeApp(firebaseConfig);
     this.db = getDatabase(this.app);
-    // Generate a random ID for this session
     this.currentPlayerId = Math.random().toString(36).substring(2, 15);
   }
 
@@ -71,30 +47,26 @@ export class SocketService {
   resetSubjects() {
     this.playerJoinedSubject.next([]);
     this.gameStartedSubject.next(null);
-    this.roleAssignedSubject.next(null);
     this.turnChangedSubject.next(0);
     this.gameResetSubject.next(null);
     this.playerLeftSubject.next([]);
+    this.voteResultsSubject.next(null);
   }
 
   async incrementVisitCount(): Promise<number> {
     const visitsRef = ref(this.db, 'analytics/visits');
-
-    // Verificar si ya visitó en esta sesión del navegador
     const hasVisited = localStorage.getItem('hasVisited');
 
     try {
       const snapshot = await get(visitsRef);
       const currentCount = snapshot.exists() ? snapshot.val() : 0;
 
-      // Solo incrementar si es una nueva visita
       if (!hasVisited) {
         const newCount = currentCount + 1;
         await set(visitsRef, newCount);
         localStorage.setItem('hasVisited', 'true');
         return newCount;
       }
-
       return currentCount;
     } catch (error) {
       console.error('Error incrementing visit count:', error);
@@ -102,13 +74,10 @@ export class SocketService {
     }
   }
 
-  // --- Actions ---
-
   createRoom(playerName: string, callback: any) {
     this.resetSubjects();
     const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = ref(this.db, 'rooms/' + roomId);
-
     const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: true, score: 0 };
 
     const roomData = {
@@ -117,7 +86,8 @@ export class SocketService {
       status: 'lobby',
       word: '',
       impostorId: '',
-      turnIndex: 0
+      turnIndex: 0,
+      votes: {},
     };
 
     set(roomRef, roomData)
@@ -133,38 +103,37 @@ export class SocketService {
     const roomRef = ref(this.db, 'rooms/' + roomId);
 
     get(roomRef).then((snapshot) => {
-      if (snapshot.exists()) {
-        const room = snapshot.val();
-        if (room.status !== 'lobby') {
-          callback({ success: false, message: 'El juego ya ha comenzado' });
-          return;
-        }
-
-        // Check if name exists (simple check)
-        if (room.players && room.players.some((p: any) => p.name === playerName)) {
-          callback({ success: false, message: 'Nombre ya en uso' });
-          return;
-        }
-
-        const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: false, score: 0 };
-        const updatedPlayers = [...(room.players || []), newPlayer];
-
-        update(roomRef, { players: updatedPlayers })
-          .then(() => {
-            this.listenToRoom(roomId);
-            callback({ success: true, room: { ...room, players: updatedPlayers } });
-          });
-
-      } else {
+      if (!snapshot.exists()) {
         callback({ success: false, message: 'Sala no encontrada' });
+        return;
       }
+
+      const room = snapshot.val();
+      if (room.status !== 'lobby') {
+        callback({ success: false, message: 'El juego ya ha comenzado' });
+        return;
+      }
+
+      if (room.players && room.players.some((p: any) => p.name === playerName)) {
+        callback({ success: false, message: 'Nombre ya en uso' });
+        return;
+      }
+
+      const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: false, score: 0 };
+      const updatedPlayers = [...(room.players || []), newPlayer];
+
+      update(roomRef, { players: updatedPlayers })
+        .then(() => {
+          this.listenToRoom(roomId);
+          callback({ success: true, room: { ...room, players: updatedPlayers } });
+        });
+
     }).catch((error) => {
       callback({ success: false, message: error.message });
     });
   }
 
   startGame(roomId: string) {
-    // Logic moved to client (Host)
     const roomRef = ref(this.db, 'rooms/' + roomId);
     get(roomRef).then(snapshot => {
       if (snapshot.exists()) {
@@ -196,64 +165,104 @@ export class SocketService {
 
   resetGame(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
-    update(roomRef, {
-      status: 'lobby',
-      word: '',
-      impostorId: '',
-      turnIndex: 0
-    });
+    update(roomRef, { status: 'voting' });
   }
 
-  // --- Listeners ---
+  sendVote(player: { id: string, name: string }) {
+    const roomId = this.gameState.roomId();
+    const voterId = this.currentPlayerId;
+    const voteRef = ref(this.db, `rooms/${roomId}/votes/${voterId}`);
+    set(voteRef, player.id);
+  }
 
   private listenToRoom(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
     onValue(roomRef, (snapshot) => {
       const room = snapshot.val();
-      if (!room) return; // Room deleted
+      if (!room) return;
 
-      // Player Joined / Left updates
       this.playerJoinedSubject.next(room.players || []);
       this.playerLeftSubject.next(room.players || []);
 
-      // Game Started
       if (room.status === 'playing' && this.gameStartedSubject.value?.status !== 'playing') {
+        const isImpostor = this.currentPlayerId === room.impostorId;
         this.gameStartedSubject.next({
           status: 'playing',
           turnIndex: room.turnIndex,
-          totalPlayers: room.players.length,
           impostorId: room.impostorId,
-          gameWord: room.word
-        });
-
-        // Check Role
-        const isImpostor = this.currentPlayerId === room.impostorId;
-        this.roleAssignedSubject.next({
-          word: isImpostor ? null : room.word,
-          isImpostor: isImpostor
+          gameWord: room.word,
+          isImpostor: isImpostor,
+          word: isImpostor ? 'Eres el impostor' : room.word,
         });
       }
 
-      // Turn Changed
       if (room.turnIndex !== this.turnChangedSubject.value) {
         this.turnChangedSubject.next(room.turnIndex);
       }
 
-      // Reset
+      if (room.status === 'voting') {
+        this.gameResetSubject.next(room);
+        this.handleVoting(room);
+      }
+
       if (room.status === 'lobby' && this.gameStartedSubject.value?.status === 'playing') {
         this.gameResetSubject.next(room);
-        // Reset local state trackers
         this.gameStartedSubject.next(null);
       }
     });
   }
 
-  // --- Observable Exposure ---
+  private handleVoting(room: any) {
+    const votes = room.votes || {};
+    const voteCount = Object.keys(votes).length;
+
+    if (voteCount === room.players.length) {
+      const voteTally: { [playerId: string]: number } = {};
+      Object.values(votes).forEach((votedPlayerId: any) => {
+        voteTally[votedPlayerId] = (voteTally[votedPlayerId] || 0) + 1;
+      });
+
+      let maxVotes = 0;
+      let votedOutPlayerId = '';
+      Object.entries(voteTally).forEach(([playerId, count]) => {
+        if (count > maxVotes) {
+          maxVotes = count;
+          votedOutPlayerId = playerId;
+        }
+      });
+
+      const impostorFound = votedOutPlayerId === room.impostorId;
+      const votedOutPlayer = room.players.find((p: any) => p.id === votedOutPlayerId);
+
+      const voted = Object.entries(votes).map(([voterId, votedId]) => {
+        const voter = room.players.find((p: any) => p.id === voterId)?.name;
+        const votedPlayerName = room.players.find((p: any) => p.id === votedId)?.name;
+        return { voter, voted: votedPlayerName };
+      });
+
+      this.voteResultsSubject.next({ voted, impostorFound, votedOutPlayer: votedOutPlayer?.name });
+      this.gameState.setVoteResults({ voted, impostorFound, votedOutPlayer: votedOutPlayer?.name });
+
+      // No longer automatically resetting. Handled by host.
+    }
+  }
+
+  startNewRound(roomId: string) {
+    const roomRef = ref(this.db, 'rooms/' + roomId);
+    update(roomRef, {
+      status: 'lobby',
+      word: '',
+      impostorId: '',
+      turnIndex: 0,
+      votes: {},
+    });
+  }
+
 
   onPlayerJoined(): Observable<any> { return this.playerJoinedSubject.asObservable(); }
   onGameStarted(): Observable<any> { return this.gameStartedSubject.asObservable(); }
-  onRoleAssigned(): Observable<any> { return this.roleAssignedSubject.asObservable(); }
   onTurnChanged(): Observable<any> { return this.turnChangedSubject.asObservable(); }
   onGameReset(): Observable<any> { return this.gameResetSubject.asObservable(); }
   onPlayerLeft(): Observable<any> { return this.playerLeftSubject.asObservable(); }
+  onVoteResults(): Observable<any> { return this.voteResultsSubject.asObservable(); }
 }

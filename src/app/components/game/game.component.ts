@@ -1,79 +1,51 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 import { SocketService } from '../../services/socket.service';
 import { GameStateService } from '../../services/game-state.service';
-import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-game',
-  standalone: true,
-  imports: [CommonModule],
   templateUrl: './game.component.html',
-  styleUrls: ['./game.component.css']
+  styleUrls: ['./game.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [CommonModule],
 })
-export class GameComponent implements OnInit, OnDestroy {
-  private subs: Subscription[] = [];
-  showWord: boolean = false;
-  showResults: boolean = false;
+export class GameComponent {
+  private socketService = inject(SocketService);
+  public gameState = inject(GameStateService);
 
-  constructor(
-    public gameState: GameStateService,
-    private socketService: SocketService,
-    private router: Router
-  ) { }
+  public showWord = false;
 
-  ngOnInit() {
-    // Verify we have a room
-    if (!this.gameState.roomId) {
-      this.router.navigate(['/']);
-      return;
-    }
-    this.subs.push(
-      this.socketService.onTurnChanged().subscribe(turnIndex => {
-        this.gameState.currentTurnIndex = turnIndex;
-      }),
-      this.socketService.onGameReset().subscribe((data) => {
-        if (data) {
-          // Mostrar resultados antes de volver al lobby
-          this.showResults = true;
-        }
-      })
-    );
-  }
+  public isMyTurn = computed(() => {
+    const players = this.gameState.players();
+    const turnIndex = this.gameState.currentTurnIndex();
+    if (players.length === 0) return false;
+    const currentPlayer = players[turnIndex];
+    return currentPlayer?.id === this.socketService.getSocketId();
+  });
 
-  ngOnDestroy() {
-    this.subs.forEach(s => s.unsubscribe());
-  }
-
-  get isMyTurn(): boolean {
-    const currentPlayer = this.gameState.players[this.gameState.currentTurnIndex];
-    return currentPlayer && currentPlayer.name === this.gameState.playerName;
-  }
-
-  get currentPlayerName(): string {
-    const currentPlayer = this.gameState.players[this.gameState.currentTurnIndex];
+  public currentPlayerName = computed(() => {
+    const players = this.gameState.players();
+    const turnIndex = this.gameState.currentTurnIndex();
+    if (players.length === 0) return 'Unknown';
+    const currentPlayer = players[turnIndex];
     return currentPlayer ? currentPlayer.name : 'Unknown';
+  });
+
+  constructor() {
+    this.socketService.onTurnChanged().subscribe(turnIndex => {
+      this.gameState.setCurrentTurnIndex(turnIndex);
+    });
   }
 
-  get impostorName(): string {
-    const impostor = this.gameState.players.find(p => p.id === this.gameState.impostorId);
-    return impostor ? impostor.name : 'Unknown';
-  }
-
-  endTurn() {
-    if (this.isMyTurn) {
-      this.socketService.endTurn(this.gameState.roomId);
+  public endTurn(): void {
+    if (this.isMyTurn()) {
+      this.socketService.endTurn(this.gameState.roomId());
     }
   }
 
-  resetGame() {
-    this.socketService.resetGame(this.gameState.roomId);
-  }
-
-  closeResults() {
-    this.showResults = false;
-    this.gameState.reset();
-    this.router.navigate(['/']);
+  public resetGame(): void {
+    // This will trigger the 'voting' status change
+    this.socketService.resetGame(this.gameState.roomId());
   }
 }
