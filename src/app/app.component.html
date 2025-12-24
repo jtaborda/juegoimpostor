@@ -1,11 +1,13 @@
-<router-outlet></router-outlet>
-<footer class="app-footer">
-    <p>
-        Desarrollado por <a href="https://instagram.com/poltaborda" target="_blank"
-            rel="noopener noreferrer"><strong>Pol Taborda</strong></a>
-        <span class="separator">•</span>
-        @if (visitCount() > 0) {
-          <span class="visit-counter">👁️ {{ visitCount() }} visitas 🎉</span>
-        }
-    </p>
-</footer>
+<main class="main-container">
+  @switch (currentView()) {
+    @case ('home') {
+      <app-home />
+    }
+    @case ('game') {
+      <app-game />
+    }
+    @case ('vote') {
+      <app-vote />
+    }
+  }
+</main>

@@ -5,7 +5,7 @@
       <h1 class="title">IMPOSTOR</h1>
 
       <div class="room-code-section">
-        <p class="room-code-label">Room Code</p>
+        <p class="room-code-label">Código de Sala</p>
         <div class="room-code-box" (click)="copyCode()">
           <span class="room-code-text">{{ gameState.roomId() }}</span>
           <span class="copy-icon">📋</span>
@@ -24,11 +24,11 @@
 
       <div class="actions">
         @if (gameState.isHost()) {
-          <button (click)="startGame()" [disabled]="gameState.players().length < 2" class="btn btn-primary btn-start">
+          <button (click)="startGame()" [disabled]="gameState.players().length < 3" class="btn btn-primary btn-start">
             Empezar Juego
           </button>
-          @if (gameState.players().length < 2) {
-            <p class="start-condition">Se necesitan al menos 2 jugadores para empezar.</p>
+          @if (gameState.players().length < 3) {
+            <p class="start-condition">Se necesitan al menos 3 jugadores para empezar.</p>
           }
         }
          @else {

@@ -16,7 +16,7 @@ export class GameStateService {
   public gameWord = signal<string>('');
   public votingInProgress = signal<boolean>(false);
   public hasVoted = signal<boolean>(false);
-  public vote = signal<{voted: any[], impostorFound: boolean, votedOutPlayer?: string} | null>(null);
+  public vote = signal<{voted: any[], impostorFound: boolean, votedOutPlayer?: string, isTie?: boolean} | null>(null);
 
   public setRoomId(roomId: string): void {
     this.roomId.set(roomId);
@@ -54,7 +54,7 @@ export class GameStateService {
     this.hasVoted.set(hasVoted);
   }
 
-  public setVoteResults(results: {voted: any[], impostorFound: boolean, votedOutPlayer?: string}): void {
+  public setVoteResults(results: {voted: any[], impostorFound: boolean, votedOutPlayer?: string, isTie?: boolean}): void {
     this.vote.set(results);
   }
 

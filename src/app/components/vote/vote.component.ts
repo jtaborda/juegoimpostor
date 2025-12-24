@@ -1,52 +1,35 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { GameStateService } from '../../services/game-state.service';
 import { SocketService } from '../../services/socket.service';
-import { Player } from '../../models/player.model';
 
 @Component({
   selector: 'app-vote',
   templateUrl: './vote.component.html',
   styleUrls: ['./vote.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VoteComponent {
   private gameState = inject(GameStateService);
   private socketService = inject(SocketService);
-  private readonly currentPlayerId = this.socketService.getSocketId();
 
   public players = this.gameState.players;
+  public currentPlayerId = this.socketService.getSocketId();
   public hasVoted = this.gameState.hasVoted;
   public voteResults = this.gameState.vote;
-  public isImpostor = this.gameState.isImpostor;
+  public showResults = computed(() => !!this.voteResults());
   public gameWord = this.gameState.gameWord;
+  public impostorId = this.gameState.impostorId;
   public isHost = this.gameState.isHost;
-  public roomId = this.gameState.roomId;
-  public showResults = computed(() => !!this.voteResults()?.voted);
 
-  public impostorName = computed(() => {
-    const impostorId = this.gameState.impostorId();
-    const players = this.players();
-    if (!impostorId || !players) return 'Unknown';
-    const impostor = players.find(p => p.id === impostorId);
-    return impostor ? impostor.name : 'Unknown';
-  });
+  public votablePlayers = computed(() => this.players().filter(p => p.id !== this.currentPlayerId));
+  public impostorName = computed(() => this.players().find(p => p.id === this.impostorId())?.name);
 
-  public votablePlayers = computed(() => {
-    const allPlayers = this.players();
-    return allPlayers.filter(p => p.id !== this.currentPlayerId);
-  });
-
-  public voteForPlayer(player: Player): void {
-    if (!this.hasVoted()) {
-      this.socketService.sendVote(player);
-      this.gameState.setHasVoted(true);
-    }
+  voteForPlayer(player: { id: string, name: string }) {
+    this.socketService.sendVote(player);
+    this.gameState.setHasVoted(true);
   }
 
-  public startNewRound(): void {
-    this.socketService.startNewRound(this.roomId());
-    // Navigation to lobby is handled by AppComponent
+  startNewRound() {
+    this.socketService.startNewRound(this.gameState.roomId());
   }
 }

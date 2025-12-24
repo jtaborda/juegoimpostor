@@ -20,6 +20,7 @@ export class SocketService {
   private gameResetSubject = new BehaviorSubject<any>(null);
   private playerLeftSubject = new BehaviorSubject<any[]>([]);
   private voteResultsSubject = new BehaviorSubject<any>(null);
+  private votingStartedSubject = new BehaviorSubject<any>(null);
 
   private words = [
     "Manzana", "Guitarra", "Playa", "Computadora", "Pizza", "Avión", "Fútbol", "Reloj", "Gato", "Libro",
@@ -51,27 +52,7 @@ export class SocketService {
     this.gameResetSubject.next(null);
     this.playerLeftSubject.next([]);
     this.voteResultsSubject.next(null);
-  }
-
-  async incrementVisitCount(): Promise<number> {
-    const visitsRef = ref(this.db, 'analytics/visits');
-    const hasVisited = localStorage.getItem('hasVisited');
-
-    try {
-      const snapshot = await get(visitsRef);
-      const currentCount = snapshot.exists() ? snapshot.val() : 0;
-
-      if (!hasVisited) {
-        const newCount = currentCount + 1;
-        await set(visitsRef, newCount);
-        localStorage.setItem('hasVisited', 'true');
-        return newCount;
-      }
-      return currentCount;
-    } catch (error) {
-      console.error('Error incrementing visit count:', error);
-      return 0;
-    }
+    this.votingStartedSubject.next(null);
   }
 
   createRoom(playerName: string, callback: any) {
@@ -87,7 +68,7 @@ export class SocketService {
       word: '',
       impostorId: '',
       turnIndex: 0,
-      votes: {},
+      votes: null,
     };
 
     set(roomRef, roomData)
@@ -177,37 +158,42 @@ export class SocketService {
 
   private listenToRoom(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
+    let previousStatus = '';
+
     onValue(roomRef, (snapshot) => {
       const room = snapshot.val();
       if (!room) return;
 
+      if (room.status !== previousStatus) {
+        if (room.status === 'playing') {
+          const isImpostor = this.currentPlayerId === room.impostorId;
+          this.gameStartedSubject.next({
+            status: 'playing',
+            turnIndex: room.turnIndex,
+            impostorId: room.impostorId,
+            gameWord: room.word,
+            isImpostor: isImpostor,
+            word: isImpostor ? 'Eres el impostor' : room.word,
+          });
+        } else if (room.status === 'voting') {
+          this.votingStartedSubject.next(room);
+          this.handleVoting(room);
+        } else if (room.status === 'lobby') {
+          this.gameResetSubject.next(room);
+          this.gameStartedSubject.next(null);
+        }
+        previousStatus = room.status;
+      }
+
       this.playerJoinedSubject.next(room.players || []);
       this.playerLeftSubject.next(room.players || []);
-
-      if (room.status === 'playing' && this.gameStartedSubject.value?.status !== 'playing') {
-        const isImpostor = this.currentPlayerId === room.impostorId;
-        this.gameStartedSubject.next({
-          status: 'playing',
-          turnIndex: room.turnIndex,
-          impostorId: room.impostorId,
-          gameWord: room.word,
-          isImpostor: isImpostor,
-          word: isImpostor ? 'Eres el impostor' : room.word,
-        });
-      }
 
       if (room.turnIndex !== this.turnChangedSubject.value) {
         this.turnChangedSubject.next(room.turnIndex);
       }
 
       if (room.status === 'voting') {
-        this.gameResetSubject.next(room);
         this.handleVoting(room);
-      }
-
-      if (room.status === 'lobby' && this.gameStartedSubject.value?.status === 'playing') {
-        this.gameResetSubject.next(room);
-        this.gameStartedSubject.next(null);
       }
     });
   }
@@ -215,35 +201,37 @@ export class SocketService {
   private handleVoting(room: any) {
     const votes = room.votes || {};
     const voteCount = Object.keys(votes).length;
+    const requiredVotes = room.players.length;
 
-    if (voteCount === room.players.length) {
+    if (voteCount === requiredVotes) {
       const voteTally: { [playerId: string]: number } = {};
       Object.values(votes).forEach((votedPlayerId: any) => {
         voteTally[votedPlayerId] = (voteTally[votedPlayerId] || 0) + 1;
       });
 
-      let maxVotes = 0;
-      let votedOutPlayerId = '';
-      Object.entries(voteTally).forEach(([playerId, count]) => {
-        if (count > maxVotes) {
-          maxVotes = count;
-          votedOutPlayerId = playerId;
-        }
+      const maxVotes = Math.max(...Object.values(voteTally), 0);
+      const playersWithMaxVotes = Object.keys(voteTally).filter(playerId => voteTally[playerId] === maxVotes);
+
+      const isTie = playersWithMaxVotes.length > 1;
+      const votedOutPlayerId = isTie ? null : playersWithMaxVotes[0];
+      const votedOutPlayer = votedOutPlayerId ? room.players.find((p: any) => p.id === votedOutPlayerId) : null;
+      const impostorFound = !!votedOutPlayerId && votedOutPlayerId === room.impostorId;
+
+      const votedBreakdown = Object.entries(votes).map(([voterId, votedId]) => {
+        const voterName = room.players.find((p: any) => p.id === voterId)?.name || 'Jugador Desconocido';
+        const votedName = room.players.find((p: any) => p.id === votedId)?.name || 'Jugador Desconocido';
+        return { voter: voterName, voted: votedName };
       });
 
-      const impostorFound = votedOutPlayerId === room.impostorId;
-      const votedOutPlayer = room.players.find((p: any) => p.id === votedOutPlayerId);
+      const results = {
+        voted: votedBreakdown,
+        isTie,
+        impostorFound,
+        votedOutPlayer: votedOutPlayer ? votedOutPlayer.name : null,
+      };
 
-      const voted = Object.entries(votes).map(([voterId, votedId]) => {
-        const voter = room.players.find((p: any) => p.id === voterId)?.name;
-        const votedPlayerName = room.players.find((p: any) => p.id === votedId)?.name;
-        return { voter, voted: votedPlayerName };
-      });
-
-      this.voteResultsSubject.next({ voted, impostorFound, votedOutPlayer: votedOutPlayer?.name });
-      this.gameState.setVoteResults({ voted, impostorFound, votedOutPlayer: votedOutPlayer?.name });
-
-      // No longer automatically resetting. Handled by host.
+      this.voteResultsSubject.next(results);
+      this.gameState.setVoteResults(results);
     }
   }
 
@@ -254,7 +242,7 @@ export class SocketService {
       word: '',
       impostorId: '',
       turnIndex: 0,
-      votes: {},
+      votes: null,
     });
   }
 
@@ -265,4 +253,5 @@ export class SocketService {
   onGameReset(): Observable<any> { return this.gameResetSubject.asObservable(); }
   onPlayerLeft(): Observable<any> { return this.playerLeftSubject.asObservable(); }
   onVoteResults(): Observable<any> { return this.voteResultsSubject.asObservable(); }
+  onVotingStarted(): Observable<any> { return this.votingStartedSubject.asObservable(); }
 }
