@@ -1,6 +1,7 @@
 <div class="vote-container">
   @if (!showResults()) {
   <h2>Vota por el Impostor</h2>
+  <br>
   <div class="players-grid">
     @for (player of votablePlayers(); track player.id) {
     <button (click)="voteForPlayer(player)" [disabled]="hasVoted()">

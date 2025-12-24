@@ -16,7 +16,7 @@ import { VoteComponent } from './components/vote/vote.component';
 export class AppComponent implements OnInit, OnDestroy {
   private gameState = inject(GameStateService);
   private socketService = inject(SocketService);
-
+  currentYear: number = new Date().getFullYear();
   public currentView = signal('home');
 
   private subscriptions = new Subscription();
