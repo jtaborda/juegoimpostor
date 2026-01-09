@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { SocketService } from '../../services/socket.service';
 import { GameStateService } from '../../services/game-state.service';
 
@@ -10,9 +11,11 @@ import { GameStateService } from '../../services/game-state.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
 })
-export class GameComponent {
+export class GameComponent implements OnDestroy {
   private socketService = inject(SocketService);
   public gameState = inject(GameStateService);
+
+  private turnSubscription: Subscription;
 
   public showWord = false;
 
@@ -33,7 +36,7 @@ export class GameComponent {
   });
 
   constructor() {
-    this.socketService.onTurnChanged().subscribe(turnIndex => {
+    this.turnSubscription = this.socketService.onTurnChanged().subscribe(turnIndex => {
       this.gameState.setCurrentTurnIndex(turnIndex);
     });
   }
@@ -44,8 +47,15 @@ export class GameComponent {
     }
   }
 
-  public resetGame(): void {
-    // This will trigger the 'voting' status change
-    this.socketService.resetGame(this.gameState.roomId());
+  public startVoting(): void {
+    if (this.gameState.isHost()) {
+      this.socketService.startVoting(this.gameState.roomId());
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.turnSubscription) {
+      this.turnSubscription.unsubscribe();
+    }
   }
 }

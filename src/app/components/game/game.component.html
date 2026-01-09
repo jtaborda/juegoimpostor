@@ -9,10 +9,11 @@
         </div>
         <div class="card-back" [class.impostor]="gameState.isImpostor()">
           @if (gameState.isImpostor()) {
-            <h2>IMPOSTOR</h2>
+            <h2>ERES EL IMPOSTOR</h2>
           } @else {
             <div>
               <p>La palabra es:</p>
+              <!-- Display the word from the gameState service -->
               <h1>{{ gameState.word() }}</h1>
             </div>
           }
@@ -33,7 +34,7 @@
         <button (click)="endTurn()" class="btn btn-primary pulse">Terminar Turno</button>
       }
       @if (gameState.isHost()) {
-        <button (click)="resetGame()" class="btn btn-danger">Terminar Juego</button>
+        <button (click)="startVoting()" class="btn btn-danger">Terminar Juego</button>
       }
     </div>
 

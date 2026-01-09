@@ -24,7 +24,6 @@ export class HomeComponent implements OnDestroy {
   private subs: Subscription[] = [];
 
   constructor() {
-    // Only reset if there's no room ID, to persist state across navigations
     if (!this.gameState.roomId()) {
       this.gameState.reset();
     }
@@ -38,7 +37,6 @@ export class HomeComponent implements OnDestroy {
       this.socketService.onGameStarted().subscribe(gameData => {
         if (gameData) {
           this.gameState.setGameData(gameData);
-          // Navigation is handled by AppComponent based on 'status'
         }
       }),
 
@@ -60,8 +58,7 @@ export class HomeComponent implements OnDestroy {
         this.gameState.setRoomId(response.roomId);
         this.gameState.setPlayerName(this.playerName());
         this.gameState.setPlayers(response.room.players);
-        this.gameState.setIsHost(true);
-        // Navigation handled by AppComponent via status change to 'lobby'
+        this.gameState.setHost(true); // Explicitly set host status
       } else {
         this.error.set('Error creating room');
       }
@@ -76,8 +73,7 @@ export class HomeComponent implements OnDestroy {
         this.gameState.setRoomId(this.roomCode().toUpperCase());
         this.gameState.setPlayerName(this.playerName());
         this.gameState.setPlayers(response.room.players);
-        this.gameState.setIsHost(false);
-        // Navigation handled by AppComponent via status change to 'lobby'
+        this.gameState.setHost(false); // Explicitly set host status
       } else {
         this.error.set(response.message);
       }

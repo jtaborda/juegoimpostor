@@ -1,9 +1,8 @@
-import { Injectable, inject } from '@angular/core';
-import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, set, onValue, update, get } from 'firebase/database';
+import { Injectable } from '@angular/core';
+import { initializeApp, getApps } from 'firebase/app';
+import { getDatabase, ref, set, onValue, update, get, runTransaction } from 'firebase/database';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { firebaseConfig } from '../firebase-config';
-import { GameStateService } from './game-state.service';
 
 @Injectable({
   providedIn: 'root'
@@ -11,32 +10,28 @@ import { GameStateService } from './game-state.service';
 export class SocketService {
   private app: any;
   private db: any;
-  private readonly currentPlayerId: string;
-  private gameState = inject(GameStateService);
+  private currentPlayerId: string;
 
+  // Subjects to mimic socket events
   private playerJoinedSubject = new BehaviorSubject<any[]>([]);
   private gameStartedSubject = new BehaviorSubject<any>(null);
   private turnChangedSubject = new BehaviorSubject<number>(0);
   private gameResetSubject = new BehaviorSubject<any>(null);
   private playerLeftSubject = new BehaviorSubject<any[]>([]);
-  private voteResultsSubject = new BehaviorSubject<any>(null);
+  private impostorGuessingSubject = new BehaviorSubject<void>(undefined);
   private votingStartedSubject = new BehaviorSubject<any>(null);
+  private voteCompletedSubject = new BehaviorSubject<any>(null);
+  private playerVotedSubject = new BehaviorSubject<any>(null);
 
-  private words = [
-    "Manzana", "Guitarra", "Playa", "Computadora", "Pizza", "Avión", "Fútbol", "Reloj", "Gato", "Libro",
-    "Montaña", "Coche", "Zapato", "Sol", "Luna", "Casa", "Trabajo", "Amigo", "Familia", "Escuela",
-    "Agua", "Café", "Pan", "Ciudad", "Río", "Shakira", "Canción", "Batería", "Micrófono", "Concierto",
-    "Rock", "Pop", "Reguetón", "Salsa", "Trompeta", "Piano", "Violín", "DJ", "Disco", "Melodía",
-    "PlayStation", "Xbox", "Nintendo", "Mario Bros", "Estrategia", "Servidor", "Teléfono", "Tablet",
-    "Internet", "Router", "Cable", "Pantalla", "Teclado", "Mouse", "Auriculares", "Red", "Software",
-    "Hardware", "BaseDeDatos", "API", "Hamburguesa", "Taco", "Helado", "Chocolate", "Cereal", "Arroz",
-    "Pollo", "Sopa", "Ensalada", "Parque de diversiones", "Museo", "Cine", "Teatro", "Hotel",
-    "Restaurante", "CentroComercial", "Estadio", "Aeropuerto", "Iglesia", "Perro", "Bicicleta",
-    "Camino", "Cielo", "Nube", "Colombia", "Rosa", "Flor", "Llave", "Puerta", "Ventana", "Venezuela"
-  ];
+  // Word List
+  private words = ["Manzana", "Guitarra", "Playa", "Computadora", "Pizza", "Avión", "Fútbol", "Reloj", "Gato", "Libro", "Montaña", "Coche", "Zapato", "Sol", "Luna", "Casa", "Trabajo", "Amigo", "Familia", "Escuela", "Agua", "Café", "Pan", "Ciudad", "Río", "Shakira", "Canción", "Batería", "Micrófono", "Concierto", "Rock", "Pop", "Reguetón", "Salsa", "Trompeta", "Piano", "Violín", "DJ", "Disco", "Melodía", "PlayStation", "Xbox", "Nintendo", "Mario Bros", "Estrategia", "Servidor", "Teléfono", "Tablet", "Internet", "Router", "Cable", "Pantalla", "Teclado", "Mouse", "Auriculares", "Red", "Software", "Hardware", "Base De Datos", "API", "Hamburguesa", "Taco", "Helado", "Chocolate", "Cereal", "Arroz", "Pollo", "Sopa", "Ensalada", "Parque de diversiones", "Museo", "Cine", "Teatro", "Hotel", "Restaurante", "CentroComercial", "Estadio", "Aeropuerto", "Iglesia", "Perro", "Bicicleta", "Camino", "Cielo", "Nube", "Colombia", "Rosa", "Flor", "Llave", "Puerta", "Ventana", "Venezuela","Bosque","Desierto","Volcán","Lago","Selva","Isla","Cascada","Océano","Valle","Glaciar", "Pradera","Acantilado","Cueva","Pantano","Arrecife","Cordillera","Sabana","Manglar","Estepa","Tundra", "Profesor","Estudiante","Vecino","Jefe","Compañero","Artista","Cantante","Escritor","Actor","Turista", "Pintura","Escultura","Fotografía","Danza","Ópera","Poema","Novela","TeatroMusical","Cineasta","Galería", "Satélite","Robot","InteligenciaArtificial","Dron","Microscopio","Laboratorio","Energía","Astronauta","Cohete","Nanotecnología", "Queso","Vino","Jugo","Empanada","Arepa","Frijoles","Pescado","Mariscos","Galleta","Té", "Cartas","Ajedrez","Dados","Puzzle","Carrera","Arcade","RealidadVirtual","Simulación","Rol","Trivia", "Tren","Barco","Moto","Metro","Camión","Submarino","Patineta","Autobús","Tractor","Tranvía", "Libertad","Paz","Amor","Esperanza","Sueño","Conocimiento","Misterio","Imaginación","Sabiduría","Fuerza", "BosquesTropicales","Arena","Roca","Mineral","Diamante","Oro","Plata","Hierro","Cobre","Cristal", "Planeta","Galaxia","Universo","Nebulosa","Constelación","Asteroide","Cometa","Meteorito","Eclipse","Órbita", "Cultura","Historia","Tradición","Leyenda","Mito","Ritual","Ceremonia","Festival","Costumbre","Patrimonio", "Matemáticas","Física","Química","Biología","Geología","Astronomía","Genética","Ecología","Psicología","Sociología", "Economía","Política","Derecho","Medicina","Ingeniería","Arquitectura","Filosofía","Lingüística","Antropología","Arqueología", "Carne","Verdura","Fruta","Mandarina","Sandía","Melón","Kiwi","Pera","Durazno","Ciruela", "Mango","Papaya","Coco","Piña","Limón","Naranja","Fresa","Uva","Granada","Guayaba", "Heladería","Panadería","Carnicería","Verdulería","Mercado","Supermercado","Tienda","Farmacia","Kiosco","Bodega", "Plaza","Avenida","Calle","Carretera","Puente","Túnel","Edificio","Rascacielos","Monumento","Fuente", "EstrellaDeMar","Coral","Medusa","Tiburón","Ballena","Delfín","Pulpo","Calamar","CaballitoDeMar","Pingüino", "León","Tigre","Elefante","Jirafa","Cebra","Hipopótamo","Rinoceronte","Mono","Koala","Canguro", "Águila","Cóndor","Halcón","Búho","Colibrí","PavoReal","Gallo","Gallina","Pato","Ganso", "Perico","Loro","Canario","Paloma","Flamenco","Pelícano","Cisne","Cuervo","Golondrina","Avestruz", "Montañismo","Escalada","Senderismo","Camping","Pesca","Surf","Buceo","Esquí","Snowboard", "Baloncesto","Tenis","Voleibol","Natación","Atletismo","Boxeo","Karate","Judo","Taekwondo","Yoga", "Ciclismo","Patinaje","Esgrima","Rugby","Críquet","Hockey","Golf","Béisbol","Softbol","PingPong", "Radio","Televisión","Podcast","Serie","Película","Documental","Noticia","Revista","Periódico","Blog", "Correo","Mensaje","Chat","Foro","RedSocial","Aplicación","Programa","Juego","Plataforma","Canal", "Cámara","Fotógrafo","Vídeo","Imagen","Retrato","Selfie","Paisaje","Panorámica","Collage","Animación", "Color","Forma","Tamaño","Diseño","Estilo","Moda","Tendencia","Accesorio","Ropa","Sombrero", "Bufanda","Guante","Abrigo","Camisa","Pantalón","Falda","Vestido","Chaqueta","Corbata","Cinturón", "Zapatería","Joyería","Perfumería","Óptica","Relojería","Boutique","Sastrería","Mercería","Papelería","Librería", "CienciaFicción","Fantasía","Terror","Suspenso","Drama","Comedia","Acción","Aventura","Romance","Musical", "Idioma","Palabra","Frase","Texto","LibroDigital","Diccionario","Enciclopedia","Ensayo","Artículo","Guion", "Plan","Proyecto","Meta","Objetivo","Idea","Propuesta","Tarea","TrabajoEnEquipo","Investigación","Experimento", "Clima","Temperatura","Estación","Primavera","Verano","Otoño","Invierno","Tormenta","Huracán","Tornado", "Nieve","Granizo","Lluvia","Viento","Relámpago","Trueno","Sequía","Inundación","Terremoto","Sismo", "RedesNeuronales","Algoritmo","Código","ServidorWeb", "Navegador","Buscador","Archivo","Documento","Carpeta","Intérprete", "Anime","Manga","Comic","Superhéroe","Villano","Saga","Trilogía","Franquicia","Personaje", "Instrumento","Sonido","Ritmo","Armonía","Compás","Escala","Acorde","Nota","Partitura","Director", "Playlist","Álbum","Dueto","Banda","Orquesta","Coral", "Carpintería","Cerámica","Artesanía","Manualidad","Diseño Gráfico","Ilustración","Graffiti","Murales","Escenografía","Decoración", "Jardín","Huerto","Maceta","Planta","Árbol","Arbusto","Semilla","Raíz","Hoja","Fruto", "Planificación","Organización","Gestión","Administración","Producción","Distribución","Comercialización","Marketing","Publicidad","Ventas", "Banco","Dinero","Moneda","Billete","Tarjeta","Crédito","Débito","Inversión","Ahorro","Interés", "EconomíaCircular","Sostenibilidad","Reciclaje","Reutilización","EnergíaSolar","EnergíaEólica","EnergíaHidráulica","EnergíaGeotérmica","Biocombustible","Eficiencia", "Salud","Bienestar","Ejercicio","Nutrición","Higiene","Vacuna","Medicamento","Hospital","Clínica","Doctor", "Paciente","Enfermera","Cirugía","Tratamiento","Diagnóstico","Síntoma","Prevención","Rehabilitación","Terapia","Psicólogo" ];
 
   constructor() {
-    this.app = initializeApp(firebaseConfig);
+    if (!getApps().length) {
+        this.app = initializeApp(firebaseConfig);
+    } else {
+        this.app = getApps()[0]; // Use existing app
+    }
     this.db = getDatabase(this.app);
     this.currentPlayerId = Math.random().toString(36).substring(2, 15);
   }
@@ -51,8 +46,10 @@ export class SocketService {
     this.turnChangedSubject.next(0);
     this.gameResetSubject.next(null);
     this.playerLeftSubject.next([]);
-    this.voteResultsSubject.next(null);
+    this.impostorGuessingSubject.next(undefined);
     this.votingStartedSubject.next(null);
+    this.voteCompletedSubject.next(null);
+    this.playerVotedSubject.next(null);
   }
 
   createRoom(playerName: string, callback: any) {
@@ -60,55 +57,36 @@ export class SocketService {
     const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
     const roomRef = ref(this.db, 'rooms/' + roomId);
     const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: true, score: 0 };
-
-    const roomData = {
-      id: roomId,
-      players: [newPlayer],
-      status: 'lobby',
-      word: '',
-      impostorId: '',
-      turnIndex: 0,
-      votes: null,
-    };
-
-    set(roomRef, roomData)
-      .then(() => {
-        this.listenToRoom(roomId);
-        callback({ success: true, roomId, room: roomData });
-      })
-      .catch(err => callback({ success: false, message: err.message }));
+    const roomData = { id: roomId, players: [newPlayer], status: 'lobby', word: '', impostorId: '', turnIndex: 0, votes: {}, voteResults: null };
+    set(roomRef, roomData).then(() => {
+      this.listenToRoom(roomId);
+      callback({ success: true, roomId, room: roomData });
+    }).catch(err => callback({ success: false, message: err.message }));
   }
 
   joinRoom(roomId: string, playerName: string, callback: any) {
     this.resetSubjects();
     const roomRef = ref(this.db, 'rooms/' + roomId);
-
     get(roomRef).then((snapshot) => {
-      if (!snapshot.exists()) {
-        callback({ success: false, message: 'Sala no encontrada' });
-        return;
-      }
-
-      const room = snapshot.val();
-      if (room.status !== 'lobby') {
-        callback({ success: false, message: 'El juego ya ha comenzado' });
-        return;
-      }
-
-      if (room.players && room.players.some((p: any) => p.name === playerName)) {
-        callback({ success: false, message: 'Nombre ya en uso' });
-        return;
-      }
-
-      const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: false, score: 0 };
-      const updatedPlayers = [...(room.players || []), newPlayer];
-
-      update(roomRef, { players: updatedPlayers })
-        .then(() => {
+      if (snapshot.exists()) {
+        const room = snapshot.val();
+        if (room.status !== 'lobby') {
+          callback({ success: false, message: 'El juego ya ha comenzado' });
+          return;
+        }
+        if (room.players && room.players.some((p: any) => p.name === playerName)) {
+          callback({ success: false, message: 'Nombre ya en uso' });
+          return;
+        }
+        const newPlayer = { id: this.currentPlayerId, name: playerName, isHost: false, score: 0 };
+        const updatedPlayers = [...(room.players || []), newPlayer];
+        update(roomRef, { players: updatedPlayers }).then(() => {
           this.listenToRoom(roomId);
           callback({ success: true, room: { ...room, players: updatedPlayers } });
         });
-
+      } else {
+        callback({ success: false, message: 'Sala no encontrada' });
+      }
     }).catch((error) => {
       callback({ success: false, message: error.message });
     });
@@ -116,19 +94,90 @@ export class SocketService {
 
   startGame(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
+    runTransaction(roomRef, (room) => {
+        if (room) {
+            if (room.status === 'playing') {
+                return;
+            }
+            const shuffledPlayers = [...room.players];
+            for (let i = shuffledPlayers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledPlayers[i], shuffledPlayers[j]] = [shuffledPlayers[j], shuffledPlayers[i]];
+            }
+            const word = this.words[Math.floor(Math.random() * this.words.length)];
+            const playerIds = shuffledPlayers.map((p: any) => p.id);
+            const impostorId = playerIds[Math.floor(Math.random() * playerIds.length)];
+            const turnIndex = Math.floor(Math.random() * shuffledPlayers.length);
+            room.status = 'playing';
+            room.players = shuffledPlayers;
+            room.word = word;
+            room.impostorId = impostorId;
+            room.turnIndex = turnIndex;
+            room.votes = {};
+            room.voteResults = null;
+            return room;
+        }
+        return room;
+    }).catch((error) => {
+        console.error("Transaction failed: ", error);
+    });
+  }
+
+  sendVote(roomId: string, playerId: string) {
+    const roomRef = ref(this.db, 'rooms/' + roomId);
     get(roomRef).then(snapshot => {
       if (snapshot.exists()) {
         const room = snapshot.val();
-        const word = this.words[Math.floor(Math.random() * this.words.length)];
-        const playerIds = room.players.map((p: any) => p.id);
-        const impostorId = playerIds[Math.floor(Math.random() * playerIds.length)];
-        const turnIndex = Math.floor(Math.random() * room.players.length);
-        update(roomRef, {
-          status: 'playing',
-          word: word,
-          impostorId: impostorId,
-          turnIndex: turnIndex
+        const voterId = this.getSocketId();
+        const currentVotes = room.votes || {};
+        currentVotes[voterId] = playerId;
+        update(roomRef, { votes: currentVotes }).then(() => {
+          if (Object.keys(currentVotes).length === room.players.length) {
+            this.calculateVoteResults(roomId);
+          }
         });
+      }
+    });
+  }
+
+  calculateVoteResults(roomId: string) {
+    const roomRef = ref(this.db, 'rooms/' + roomId);
+    get(roomRef).then(snapshot => {
+      if (snapshot.exists()) {
+        const room = snapshot.val();
+        const votes = room.votes;
+        const voteCounts = (Object.values(votes) as string[]).reduce((acc: { [key: string]: number }, playerId: string) => {
+            acc[playerId] = (acc[playerId] || 0) + 1;
+            return acc;
+        }, {});
+        const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+        const maxVotes = sortedVotes.length > 0 ? sortedVotes[0][1] : 0;
+        const mostVoted = sortedVotes.filter(entry => entry[1] === maxVotes);
+        let voteResults;
+        if (mostVoted.length > 1) { // Tie
+            voteResults = { isTie: true, votedOutPlayer: null, impostorFound: false };
+        } else {
+            const votedOutPlayerId = mostVoted[0][0];
+            const impostorFound = votedOutPlayerId === room.impostorId;
+            voteResults = { isTie: false, votedOutPlayer: votedOutPlayerId, impostorFound };
+        }
+        update(roomRef, { status: 'results', voteResults });
+      }
+    });
+  }
+
+  startNewRound(roomId: string) {
+    const roomRef = ref(this.db, 'rooms/' + roomId);
+    update(roomRef, { status: 'lobby', word: '', impostorId: '', turnIndex: 0, votes: {}, voteResults: null });
+  }
+
+  impostorGuess(roomId: string, guess: string) {
+    const roomRef = ref(this.db, 'rooms/' + roomId);
+    get(roomRef).then(snapshot => {
+      if (snapshot.exists()) {
+        const room = snapshot.val();
+        const impostorWin = room.word.toLowerCase() === guess.toLowerCase();
+        update(roomRef, { status: 'results', voteResults: { impostorWin, isTie: false, votedOutPlayer: null, impostorFound: false } });
       }
     });
   }
@@ -144,114 +193,70 @@ export class SocketService {
     });
   }
 
-  resetGame(roomId: string) {
+  startVoting(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
-    update(roomRef, { status: 'voting' });
-  }
-
-  sendVote(player: { id: string, name: string }) {
-    const roomId = this.gameState.roomId();
-    const voterId = this.currentPlayerId;
-    const voteRef = ref(this.db, `rooms/${roomId}/votes/${voterId}`);
-    set(voteRef, player.id);
+    update(roomRef, { status: 'voting', voteResults: null });
   }
 
   private listenToRoom(roomId: string) {
     const roomRef = ref(this.db, 'rooms/' + roomId);
-    let previousStatus = '';
-
     onValue(roomRef, (snapshot) => {
       const room = snapshot.val();
       if (!room) return;
 
-      if (room.status !== previousStatus) {
-        if (room.status === 'playing') {
-          const isImpostor = this.currentPlayerId === room.impostorId;
-          this.gameStartedSubject.next({
-            status: 'playing',
-            turnIndex: room.turnIndex,
-            impostorId: room.impostorId,
-            gameWord: room.word,
-            isImpostor: isImpostor,
-            word: isImpostor ? 'Eres el impostor' : room.word,
-          });
-        } else if (room.status === 'voting') {
-          this.votingStartedSubject.next(room);
-          this.handleVoting(room);
-        } else if (room.status === 'lobby') {
-          this.gameResetSubject.next(room);
-          this.gameStartedSubject.next(null);
-        }
-        previousStatus = room.status;
-      }
-
       this.playerJoinedSubject.next(room.players || []);
       this.playerLeftSubject.next(room.players || []);
+
+      if (room.status === 'playing' && this.gameStartedSubject.value?.status !== 'playing') {
+        const isImpostor = this.currentPlayerId === room.impostorId;
+        const gameData = {
+          status: 'playing',
+          players: room.players,
+          turnIndex: room.turnIndex,
+          impostorId: room.impostorId,
+          gameWord: room.word,
+          isImpostor: isImpostor,
+          word: isImpostor ? null : room.word
+        };
+        this.gameStartedSubject.next(gameData);
+      }
+
+      if (room.status === 'voting' && this.votingStartedSubject.value?.status !== 'voting') {
+        this.votingStartedSubject.next({ status: 'voting' });
+      }
+
+      if (room.status === 'results' && (!this.voteCompletedSubject.value || JSON.stringify(this.voteCompletedSubject.value) !== JSON.stringify(room.voteResults))) {
+        this.voteCompletedSubject.next(room.voteResults);
+      }
+
+      if (room.votes && Object.keys(room.votes).length > (this.playerVotedSubject.value ? Object.keys(this.playerVotedSubject.value).length : 0)) {
+        this.playerVotedSubject.next(room.votes);
+      }
 
       if (room.turnIndex !== this.turnChangedSubject.value) {
         this.turnChangedSubject.next(room.turnIndex);
       }
 
-      if (room.status === 'voting') {
-        this.handleVoting(room);
+      if (room.status === 'lobby' && this.gameStartedSubject.value?.status === 'playing') {
+        this.gameResetSubject.next(room);
+        this.gameStartedSubject.next(null);
+        this.votingStartedSubject.next(null); // THE FIX
+        this.voteCompletedSubject.next(null);
+      }
+
+      if (room.impostorIsGuessing) {
+        this.impostorGuessingSubject.next();
       }
     });
   }
-
-  private handleVoting(room: any) {
-    const votes = room.votes || {};
-    const voteCount = Object.keys(votes).length;
-    const requiredVotes = room.players.length;
-
-    if (voteCount === requiredVotes) {
-      const voteTally: { [playerId: string]: number } = {};
-      Object.values(votes).forEach((votedPlayerId: any) => {
-        voteTally[votedPlayerId] = (voteTally[votedPlayerId] || 0) + 1;
-      });
-
-      const maxVotes = Math.max(...Object.values(voteTally), 0);
-      const playersWithMaxVotes = Object.keys(voteTally).filter(playerId => voteTally[playerId] === maxVotes);
-
-      const isTie = playersWithMaxVotes.length > 1;
-      const votedOutPlayerId = isTie ? null : playersWithMaxVotes[0];
-      const votedOutPlayer = votedOutPlayerId ? room.players.find((p: any) => p.id === votedOutPlayerId) : null;
-      const impostorFound = !!votedOutPlayerId && votedOutPlayerId === room.impostorId;
-
-      const votedBreakdown = Object.entries(votes).map(([voterId, votedId]) => {
-        const voterName = room.players.find((p: any) => p.id === voterId)?.name || 'Jugador Desconocido';
-        const votedName = room.players.find((p: any) => p.id === votedId)?.name || 'Jugador Desconocido';
-        return { voter: voterName, voted: votedName };
-      });
-
-      const results = {
-        voted: votedBreakdown,
-        isTie,
-        impostorFound,
-        votedOutPlayer: votedOutPlayer ? votedOutPlayer.name : null,
-      };
-
-      this.voteResultsSubject.next(results);
-      this.gameState.setVoteResults(results);
-    }
-  }
-
-  startNewRound(roomId: string) {
-    const roomRef = ref(this.db, 'rooms/' + roomId);
-    update(roomRef, {
-      status: 'lobby',
-      word: '',
-      impostorId: '',
-      turnIndex: 0,
-      votes: null,
-    });
-  }
-
 
   onPlayerJoined(): Observable<any> { return this.playerJoinedSubject.asObservable(); }
   onGameStarted(): Observable<any> { return this.gameStartedSubject.asObservable(); }
   onTurnChanged(): Observable<any> { return this.turnChangedSubject.asObservable(); }
   onGameReset(): Observable<any> { return this.gameResetSubject.asObservable(); }
   onPlayerLeft(): Observable<any> { return this.playerLeftSubject.asObservable(); }
-  onVoteResults(): Observable<any> { return this.voteResultsSubject.asObservable(); }
+  onImpostorGuessing(): Observable<void> { return this.impostorGuessingSubject.asObservable(); }
   onVotingStarted(): Observable<any> { return this.votingStartedSubject.asObservable(); }
+  onVoteCompleted(): Observable<any> { return this.voteCompletedSubject.asObservable(); }
+  onPlayerVoted(): Observable<any> { return this.playerVotedSubject.asObservable(); }
 }

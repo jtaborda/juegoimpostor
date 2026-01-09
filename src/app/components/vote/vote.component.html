@@ -1,67 +1,76 @@
 <div class="vote-container">
   @if (!showResults()) {
-  <h2>Vota por el Impostor</h2>
-  <br>
-  <div class="players-grid">
-    @for (player of votablePlayers(); track player.id) {
-    <button (click)="voteForPlayer(player)" [disabled]="hasVoted()">
-      {{ player.name }}
-    </button>
-    }
-  </div>
-  @if (hasVoted()) {
-  <p class="waiting-text">Esperando a que los demás jugadores voten...</p>
-  }
-  } @else {
-  <div class="modal-overlay">
-    <div class="modal-content">
-      <h1 class="modal-title">🎭 Fin del Juego 🎭</h1>
-
-      <div class="results-info">
-        <div class="result-item">
-          <p class="result-label">La palabra era:</p>
-          <h2 class="result-value word">{{ gameWord() }}</h2>
-        </div>
-
-        <div class="result-item impostor-reveal">
-          <p class="result-label">El impostor era:</p>
-          <h2 class="result-value impostor">{{ impostorName() }}</h2>
-        </div>
-
-        @if (voteResults()?.isTie) {
-        <div class="result-item">
-          <p class="result-label">Resultado de la Votación:</p>
-          <h2 class="result-value">¡Hubo un empate! Nadie fue expulsado.</h2>
-        </div>
-        } @else if (voteResults()?.votedOutPlayer) {
-        <div class="result-item">
-          <p class="result-label">El jugador expulsado fue:</p>
-          <h2 class="result-value">{{ voteResults()?.votedOutPlayer }}</h2>
-        </div>
-        }
-
-        <div class="result-item">
-          <p class="result-label">Desglose de Votos:</p>
-          <ul class="vote-breakdown">
-            @for (vote of voteResults()?.voted; track $index) {
-            <li>
-              <span class="voter-name">{{ vote.voter }}</span> votó por <span class="voted-name">{{ vote.voted }}</span>
-            </li>
-            }
-          </ul>
-        </div>
-      </div>
-
-      <div class="results-actions">
-        @if (isHost()) {
-        <button (click)="startNewRound()" class="btn-new-round">
-          <span>🎮</span> Nueva Ronda
+    <h2>Vota por el Impostor</h2>
+    <br>
+    <div class="players-grid">
+      @for (player of votablePlayers(); track player.id) {
+        <button (click)="voteForPlayer(player)" [disabled]="hasVoted()">
+          {{ player.name }}
         </button>
+      }
+    </div>
+    @if (hasVoted()) {
+      <p class="waiting-text">Esperando a que los demás jugadores voten...</p>
+    }
+  } @else {
+    <div class="modal-overlay">
+      <div class="modal-content">
+        @if (voteResults()?.impostorFound && isImpostor() && impostorIsGuessing()) {
+          <h1 class="modal-title">🤔 ¡Te han descubierto! 🤔</h1>
+          <p class="guess-word-label">Adivina la palabra para ganar:</p>
+          <input type="text" [(ngModel)]="impostorGuessedWord" placeholder="Escribe tu respuesta">
+          <button (click)="submitGuess()" class="btn-submit-guess">Enviar</button>
+        } @else if (voteResults()?.impostorFound && !isImpostor() && impostorIsGuessing()) {
+          <div class="waiting-impostor">
+            <h1 class="modal-title">🤫 ¡El impostor fue descubierto! 🤫</h1>
+            <p>Está intentando adivinar la palabra para intentar ganar...</p>
+            <div class="spinner"></div>
+          </div>
         } @else {
-        <p class="waiting-text">Esperando al host para iniciar una nueva ronda...</p>
+          <h1 class="modal-title">🎭 Fin del Juego 🎭</h1>
+          <div class="results-info">
+            <div class="result-item">
+              <p class="result-label">La palabra era:</p>
+              <h2 class="result-value word">{{ gameWord() }}</h2>
+            </div>
+            <div class="result-item impostor-reveal">
+              <p class="result-label">El impostor era:</p>
+              <h2 class="result-value impostor">{{ impostorName() }}</h2>
+            </div>
+            @if (voteResults(); as results) {
+              @if (results.isTie) {
+                <div class="result-item">
+                  <p class="result-label">Resultado de la Votación:</p>
+                  <h2 class="result-value">¡Hubo un empate!</h2>
+                </div>
+              } @else if (results.votedOutPlayer) {
+                <div class="result-item">
+                  <p class="result-label">El jugador expulsado fue:</p>
+                  <h2 class="result-value">{{ votedOutPlayerName() }}</h2>
+                </div>
+                <div class="result-item">
+                  <p class="result-label">¿Era el impostor?</p>
+                  <h2 class="result-value">{{ results.impostorFound ? 'Sí' : 'No' }}</h2>
+                </div>
+              }
+              @if(results.impostorWin) {
+                  <div class="result-item">
+                      <p class="result-label">El impostor adivinó la palabra y ganó</p>
+                  </div>
+              }
+            }
+          </div>
+          <div class="results-actions">
+            @if (isHost()) {
+              <button (click)="startNewRound()" class="btn-new-round">
+                <span>🎮</span> Nueva Ronda
+              </button>
+            } @else {
+              <p class="waiting-text">Esperando al host para iniciar una nueva ronda...</p>
+            }
+          </div>
         }
       </div>
     </div>
-  </div>
   }
 </div>
