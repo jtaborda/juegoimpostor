@@ -36,6 +36,10 @@ export class SocketService {
     this.currentPlayerId = Math.random().toString(36).substring(2, 15);
   }
 
+  private normalizeString(str: string): string {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+
   getSocketId() {
     return this.currentPlayerId;
   }
@@ -176,7 +180,9 @@ export class SocketService {
     get(roomRef).then(snapshot => {
       if (snapshot.exists()) {
         const room = snapshot.val();
-        const impostorWin = room.word.toLowerCase() === guess.toLowerCase();
+        const normalizedWord = this.normalizeString(room.word);
+        const normalizedGuess = this.normalizeString(guess);
+        const impostorWin = normalizedWord === normalizedGuess;
         update(roomRef, { status: 'results', voteResults: { impostorWin, isTie: false, votedOutPlayer: null, impostorFound: false } });
       }
     });

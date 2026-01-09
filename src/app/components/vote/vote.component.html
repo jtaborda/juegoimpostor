@@ -55,8 +55,13 @@
               }
               @if(results.impostorWin) {
                   <div class="result-item">
-                      <p class="result-label">El impostor adivinó la palabra y ganó</p>
+                      <p class="result-label2">El impostor ADIVINO la palabra y ganó</p>
                   </div>
+              }
+             @else {
+                <div class="result-item">
+                  <p class="result-label2">El impostor NO adivinó la palabra</p>
+              </div>
               }
             }
           </div>
