@@ -53,16 +53,19 @@
                   <h2 class="result-value">{{ results.impostorFound ? 'Sí' : 'No' }}</h2>
                 </div>
               }
+              @if(!results.isTie)
+              {
               @if(results.impostorWin) {
                   <div class="result-item">
                       <p class="result-label2">El impostor ADIVINO la palabra y ganó</p>
                   </div>
               }
              @else {
-                <div class="result-item">
-                  <p class="result-label2">El impostor NO adivinó la palabra</p>
+                <div class="result-item">               
+                    <p class="result-label2">El impostor NO ADIVINO la palabra</p>                 
               </div>
               }
+            }
             }
           </div>
           <div class="results-actions">
